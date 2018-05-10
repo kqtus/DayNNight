@@ -10,6 +10,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import com.example.elmar.daynnight.Drawables.Cloud;
+import com.example.elmar.daynnight.Drawables.Earth;
 import com.example.elmar.daynnight.Drawables.GameDrawable;
 import com.example.elmar.daynnight.Drawables.Moon;
 import com.example.elmar.daynnight.Drawables.Star;
@@ -50,7 +51,9 @@ public class GameView extends SurfaceView implements Runnable {
 
     protected final Point moonVisiblePos;
     protected final Point moonHiddenPos;
-    protected  Point moonCurrentPos;
+    protected Point moonCurrentPos;
+
+    protected Point earthPos;
 
     public GameView(Context context) {
         super(context);
@@ -66,6 +69,8 @@ public class GameView extends SurfaceView implements Runnable {
         moonVisiblePos = new Point(100, 100);
         moonHiddenPos = new Point(-100, -100);
         moonCurrentPos = new Point(moonHiddenPos);
+
+        earthPos = new Point(0, 0);
     }
 
     @Override
@@ -110,6 +115,11 @@ public class GameView extends SurfaceView implements Runnable {
             cloud.setSpeed(5 - scaleFactor);
             drawables.add(cloud);
         }
+
+        Earth earth = new Earth(getContext());
+        //earth.setPosition();
+        earth.setSize(1000.f);
+        drawables.add(earth);
 
         Thunder thunder = new Thunder(getContext());
         thunder.setPosition(getRandomPosOnSky());
@@ -182,7 +192,16 @@ public class GameView extends SurfaceView implements Runnable {
                     lastShakeTime = sensorLastShakeTime;
                 }
             }
+
+            if (gd instanceof Earth) {
+                gd.setPosition(earthPos);
+            }
         }
+    }
+
+    protected void forceUpdateDrawables() {
+        sunHiddenPos.set(screenHeight - 30, screenWidth / 2);
+        earthPos.set(screenWidth / 2, screenHeight + 700);
     }
 
     public void draw() {
@@ -218,7 +237,7 @@ public class GameView extends SurfaceView implements Runnable {
         screenWidth = size.x;
         screenHeight = size.y;
 
-        sunHiddenPos.set(screenHeight - 30, screenWidth / 2);
+        forceUpdateDrawables();
     }
 
     public void setLightSensor(IlluminanceSensorListener sensor) {
