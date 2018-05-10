@@ -11,8 +11,13 @@ import android.view.SurfaceView;
 
 import com.example.elmar.daynnight.Drawables.Cloud;
 import com.example.elmar.daynnight.Drawables.GameDrawable;
+import com.example.elmar.daynnight.Drawables.Moon;
+import com.example.elmar.daynnight.Drawables.Star;
 import com.example.elmar.daynnight.Drawables.Sun;
+import com.example.elmar.daynnight.Drawables.Thunder;
 import com.example.elmar.daynnight.Listeners.IlluminanceSensorListener;
+import com.example.elmar.daynnight.Listeners.ShakeSensoListener;
+import com.example.elmar.daynnight.Other.Sky;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -35,6 +40,17 @@ public class GameView extends SurfaceView implements Runnable {
 
     protected List<GameDrawable> drawables;
     protected IlluminanceSensorListener lightSensor;
+    protected ShakeSensoListener shakeSensor;
+
+    protected long lastShakeTime;
+
+    protected final Point sunVisiblePos;
+    protected final Point sunHiddenPos;
+    protected Point sunCurrentPos;
+
+    protected final Point moonVisiblePos;
+    protected final Point moonHiddenPos;
+    protected  Point moonCurrentPos;
 
     public GameView(Context context) {
         super(context);
@@ -42,48 +58,129 @@ public class GameView extends SurfaceView implements Runnable {
         holder = getHolder();
         paint = new Paint();
         drawables = new LinkedList<>();
+
+        sunVisiblePos = new Point(120, 120);
+        sunHiddenPos = new Point(0, 0);
+        sunCurrentPos = new Point(sunVisiblePos);
+
+        moonVisiblePos = new Point(100, 100);
+        moonHiddenPos = new Point(-100, -100);
+        moonCurrentPos = new Point(moonHiddenPos);
     }
 
     @Override
     public void run() {
         createMap();
+
         while (isPlaying) {
-            long startFrameTime = System.currentTimeMillis();
             update();
             draw();
         }
     }
 
     private void createMap() {
+        Moon moon = new Moon(getContext());
+        moon.setPosition(moonCurrentPos);
+        moon.setSize(420.0f);
+        drawables.add(moon);
+
         Sun sun = new Sun(getContext());
-        sun.setPosition(new Point(10, 10));
-        sun.setSize(120.f);
+        sun.setPosition(sunCurrentPos);
+        sun.setSize(220.f);
         drawables.add(sun);
+
         Random rnd = new Random();
 
-        for (int i = 0; i < 5; i++) {
-            Cloud cloud = new Cloud(getContext());
-            int xPos = (int)(screenHeight * 0.1) + rnd.nextInt((int)(screenHeight * 0.2));
-            int yPos = rnd.nextInt(screenWidth * 2);
-
-            cloud.setPosition(new Point(yPos, xPos));
+        for (int i = 0; i < 40; i++) {
+            Star star = new Star(getContext());
             int scaleFactor = 1 + rnd.nextInt(4);
+
+            star.setSize(60.0f / scaleFactor);
+            star.setPosition(getRandomPosOnSky());
+            star.setFlickeringFrequency(scaleFactor / 2);
+            drawables.add(star);
+        }
+
+        for (int i = 0; i < 14; i++) {
+            Cloud cloud = new Cloud(getContext());
+            int scaleFactor = 1 + rnd.nextInt(4);
+
+            cloud.setPosition(getRandomPosOnSky());
             cloud.setSize(350.0f / scaleFactor, 230.0f / scaleFactor);
+            cloud.setSpeed(5 - scaleFactor);
             drawables.add(cloud);
         }
+
+        Thunder thunder = new Thunder(getContext());
+        thunder.setPosition(getRandomPosOnSky());
+        thunder.setSize(350.f, 450.f);
+        thunder.setHidingSpeed(2);
+        drawables.add(thunder);
+    }
+
+    private Point getRandomPosOnSky() {
+        Random rnd = new Random();
+        int yPos = (int)(screenHeight * 0.1) + rnd.nextInt((int)(screenHeight * 0.6));
+        int xPos = rnd.nextInt(screenWidth * 2);
+
+        return new Point(xPos, yPos);
     }
 
     public void update() {
         for (GameDrawable gd : drawables) {
             gd.update();
 
+            float percentage = (int)lightSensor.getIlluminancePercetage();
+            if (range > 0) {
+                percentage /= range;
+            }
+
+            if (gd instanceof Star) {
+                gd.setAlpha((int)((1.0f - percentage) * 255));
+            }
+
             if (gd instanceof Cloud) {
                 Point pos = gd.getPosition();
+
                 if (pos.x > screenWidth) {
                     pos.x = - (int)gd.getSize();
+                    gd.setPosition(pos);
                 }
 
-                gd.setPosition(new Point(pos.x + 1, pos.y));
+                gd.setAlpha((int)(percentage * 255));
+            }
+
+            if (gd instanceof Moon) {
+                Point delta = new Point(
+                        (int)((moonVisiblePos.x - moonHiddenPos.x) * -percentage),
+                        (int)((moonVisiblePos.y - moonHiddenPos.y) * -percentage)
+                );
+                moonCurrentPos.x = moonVisiblePos.x + delta.x;
+                moonCurrentPos.y = moonVisiblePos.y + delta.y;
+
+                gd.setPosition(moonCurrentPos);
+                gd.setAlpha((int)((1.0f - percentage) * 255));
+            }
+
+            if (gd instanceof Sun) {
+                Point delta = new Point(
+                        (int)((sunVisiblePos.x - sunHiddenPos.x) * percentage),
+                        (int)((sunVisiblePos.y - sunHiddenPos.y) * percentage)
+                );
+                sunCurrentPos.x = sunHiddenPos.x + delta.x;
+                sunCurrentPos.y = sunHiddenPos.y + delta.y;
+
+                gd.setPosition(sunCurrentPos);
+            }
+
+            if (gd instanceof Thunder) {
+                long sensorLastShakeTime = shakeSensor.getLastShakeTime();
+                if (sensorLastShakeTime > lastShakeTime) {
+                    gd.setPosition(getRandomPosOnSky());
+                    ((Thunder) gd).show();
+
+                    lastShakeTime = sensorLastShakeTime;
+                }
             }
         }
     }
@@ -91,16 +188,18 @@ public class GameView extends SurfaceView implements Runnable {
     public void draw() {
         if (holder.getSurface().isValid()) {
             canvas = holder.lockCanvas();
-            int lightPercentage = 255 * (int)lightSensor.getIlluminancePercetage();
 
-            if (range > 0) {
-                lightPercentage /= range;
+            if (canvas == null) {
+                return;
             }
 
-            canvas.drawColor(Color.argb(255, lightPercentage, lightPercentage, 182));
-            //paint.setColor(Color.argb(255, lightPercentage, lightPercentage, 0));
-            //paint.setTextSize(45);
-            //canvas.drawText("FPS:" + fps, 20, 40, paint);
+            float percentage = (int)lightSensor.getIlluminancePercetage();
+
+            if (range > 0) {
+                percentage /= range;
+            }
+
+            canvas.drawColor(Sky.GetBlendedColor(percentage));
 
             for (GameDrawable gd : drawables) {
                 gd.draw(canvas);
@@ -118,26 +217,19 @@ public class GameView extends SurfaceView implements Runnable {
     public void setScreenSize(Point size) {
         screenWidth = size.x;
         screenHeight = size.y;
+
+        sunHiddenPos.set(screenHeight - 30, screenWidth / 2);
     }
 
     public void setLightSensor(IlluminanceSensorListener sensor) {
         lightSensor = sensor;
     }
 
-    public void setMaxLightRange(float range) {
-        this.range = range;
+    public void setShakeSensor(ShakeSensoListener sensor) {
+        shakeSensor = sensor;
     }
 
-    // 0 - 12:00
-    // 1 - 15:00
-    // 2 - 18:00
-    // 3 - 21:00
-    // 4  - 24:00
-    public void setDayPhase(int phase) {
-        // Translate sun to calculated point
-        // Translate moon to calculated point
-        // Make clouds transparent accordingly
-        // Make stars visible accordingly
-        // Change background colours accordingly
+    public void setMaxLightRange(float range) {
+        this.range = range;
     }
 }

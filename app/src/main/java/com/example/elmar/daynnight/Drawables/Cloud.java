@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.Point;
 import android.graphics.drawable.Drawable;
 
 import com.example.elmar.daynnight.R;
@@ -18,6 +19,7 @@ public class Cloud extends GameDrawable {
     private Paint paint;
     private int direction = 1;
     private int rscId = 0;
+    private int speed = 0;
     private Drawable cloudDrawable;
 
     public Cloud(Context context) {
@@ -39,7 +41,9 @@ public class Cloud extends GameDrawable {
 
     @Override
     public void update() {
-
+        Point pos = getPosition();
+        pos.x += speed;
+        setPosition(pos);
     }
 
     @Override
@@ -56,5 +60,13 @@ public class Cloud extends GameDrawable {
     public void setSize(float width, float height) {
         cloudDrawable.setBounds(0, 0, (int)width, (int)height);
         super.setSize(width);
+    }
+
+    public void setSpeed(int speed) {
+        this.speed = speed;
+    }
+
+    public int getSpeed() {
+        return speed;
     }
 }
